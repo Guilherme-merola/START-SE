@@ -54,7 +54,7 @@ class Empresas(models.Model):
         else:
             return mark_safe('<span class="badge bg-primary">Em captação</span>')
         
-        
+    
     @property
     def valuation(self) -> str:
         return f"{self.valor * 100 / self.percentual_equity :.2f}"
