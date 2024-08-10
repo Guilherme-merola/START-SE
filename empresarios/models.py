@@ -1,5 +1,3 @@
-from decimal import Decimal
-from typing import Literal
 from django.db import models
 from django.contrib.auth.models import User
 from datetime import date
@@ -58,3 +56,22 @@ class Empresas(models.Model):
     @property
     def valuation(self) -> str:
         return f"{self.valor * 100 / self.percentual_equity :.2f}"
+    
+    
+class Documento(models.Model):
+    empresa = models.ForeignKey(Empresas, on_delete=models.DO_NOTHING)
+    titulo = models.CharField(max_length=30)
+    arquivo = models.FileField(upload_to='documentos')
+
+
+    def __str__(self) -> str:
+        return self.titulo
+    
+    
+class Metricas(models.Model):
+    empresa = models.ForeignKey(Empresas, on_delete=models.DO_NOTHING)
+    titulo = models.CharField(max_length=30)
+    valor = models.FloatField()
+    
+    def __str__(self) -> str:
+        return self.titulo

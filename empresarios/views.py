@@ -1,10 +1,8 @@
-from math import log
 from django.db.models.manager import BaseManager
 from django.http import HttpResponse, HttpResponsePermanentRedirect, HttpResponseRedirect
 from django.shortcuts import redirect, render
 
-import empresarios
-from .models import Empresas
+from .models import Empresas, Documento, Metricas
 from django.contrib.messages import constants
 from django.contrib import messages
 
@@ -70,8 +68,69 @@ def listar_empresas(request):
         return render(request, "listar_empresas.html", {"empresas": empresas})
     
 
-def empresa(request, id):
+def empresa(request, id) -> HttpResponse | None:
     empresa: Empresas = Empresas.objects.get(id=id)
     
     if request.method == "GET":
-        return render(request, "empresa.html", {"empresa": empresa})
+        documentos: BaseManager[Documento] = Documento.objects.filter(empresa=empresa) 
+        return render(request, "empresa.html", {
+            "empresa": empresa,
+            "documentos": documentos
+        })
+    
+    
+def add_doc(request, id) -> HttpResponseRedirect | HttpResponsePermanentRedirect:
+    empresa = Empresas.objects.get(id=id)
+    titulo = request.POST.get('titulo')
+    arquivo = request.FILES.get('arquivo')
+    
+    if empresa.user != request.user:
+        messages.add_message(request, constants.ERROR, "Está empresa não é sua.")
+        return redirect(f'/empresarios/listar_empresas')
+    
+    if not '.pdf' in arquivo.name:
+        messages.add_message(request, constants.ERROR, "Apenas PDF's são aceitos.")
+        return redirect(f'/empresarios/empresa/{id}')
+
+    if not arquivo:
+        messages.add_message(request, constants.ERROR, "Envie um arquivo")
+        return redirect(f'/empresarios/empresa/{id}')
+    
+    documento = Documento(
+        empresa=empresa,
+        titulo=titulo,
+        arquivo=arquivo,
+    )
+
+    documento.save()
+    
+    messages.add_message(request, constants.SUCCESS, "Cadastrado com Sucesso.")
+    return redirect(f'/empresarios/empresa/{id}')
+
+    
+def excluir_doc(request, id) -> HttpResponseRedirect | HttpResponsePermanentRedirect:
+    documento: Documento = Documento.objects.get(id=id)
+    
+    if documento.empresa.user != request.user:
+        messages.add_message(request, constants.ERROR, "Está empresa não é sua.")
+        return redirect(f'/empresarios/listar_empresas')
+     
+    documento.delete()
+    messages.add_message(request, constants.SUCCESS, "Documento excluido com sucesso")
+    return redirect(f"/empresarios/empresa/{documento.empresa.id}")
+
+
+def add_metrica(request, id) -> HttpResponseRedirect | HttpResponsePermanentRedirect:
+    empresa = Empresas.objects.get(id=id)
+    titulo = request.POST.get("titulo")
+    valor = request.POST.get("valor")
+    
+    metrica = Metricas(
+        empresa=empresa,
+        titulo=titulo,
+        valor=valor,
+    )
+    
+    metrica.save()
+    messages.add_message(request, constants.SUCCESS, "Métrica adicionada com sucesso.")
+    return redirect(f"/empresarios/empresa/{empresa.id}")
