@@ -3,6 +3,7 @@ from django.http import HttpResponse, HttpResponsePermanentRedirect, HttpRespons
 from django.shortcuts import redirect, render
 
 from .models import Empresas, Documento, Metricas
+from investidores.models import PropostaInvestimento
 from django.contrib.messages import constants
 from django.contrib import messages
 
@@ -14,7 +15,7 @@ def cadastrar_empresa(request) -> HttpResponseRedirect | HttpResponsePermanentRe
     if request.method == "GET":
         return render(request, 'cadastrar_empresa.html', 
                       {'tempo_existencia': Empresas.tempo_existencia_choices, 
-                       'areas': Empresas.area_choices })
+                       'areas': Empresas.area_choices,})
         
     elif request.method == "POST":
         nome = request.POST.get('nome')
@@ -72,10 +73,21 @@ def empresa(request, id) -> HttpResponse | None:
     empresa: Empresas = Empresas.objects.get(id=id)
     
     if request.method == "GET":
+        propostas_investimentos: BaseManager[PropostaInvestimento] = PropostaInvestimento.objects.filter(empresa=empresa)
+        propostas_investimentos_enviadas: BaseManager[PropostaInvestimento] = propostas_investimentos.filter(status="PE")
+        percentual_vendido: float = sum(x.percentual for x in propostas_investimentos if x.status == "PA")
+        total_captado: float = float(sum(x.valor for x in propostas_investimentos if x.status == "PA"))
+        valuation_atual: float = 100 * total_captado / percentual_vendido if percentual_vendido != 0 else 0
+
         documentos: BaseManager[Documento] = Documento.objects.filter(empresa=empresa) 
+        
         return render(request, "empresa.html", {
             "empresa": empresa,
-            "documentos": documentos
+            "documentos": documentos,
+            "propostas_investimento_enviadas": propostas_investimentos_enviadas,
+            "percentual_vendido": int(percentual_vendido),
+            "total_captado": total_captado,
+            "valuation_atual": valuation_atual,
         })
     
     
@@ -134,3 +146,19 @@ def add_metrica(request, id) -> HttpResponseRedirect | HttpResponsePermanentRedi
     metrica.save()
     messages.add_message(request, constants.SUCCESS, "Métrica adicionada com sucesso.")
     return redirect(f"/empresarios/empresa/{empresa.id}")
+
+
+def gerenciar_proposta(request, id) -> HttpResponseRedirect | HttpResponsePermanentRedirect:
+    acao = request.GET.get('acao')
+    pi: PropostaInvestimento = PropostaInvestimento.objects.get(id=id)
+    
+    if acao == "aceitar":
+        messages.add_message(request, constants.SUCCESS, 'Proposta aceita.')
+        pi.status = 'PA'
+        
+    else:
+        messages.add_message(request, constants.SUCCESS, 'Proposta recusada.')
+        pi.status = 'PR'
+    
+    pi.save()
+    return redirect(f'/empresarios/empresa/{pi.empresa.id}')
